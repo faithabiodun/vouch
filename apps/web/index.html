@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VOUCH — counterparty reputation for the OKX.AI agent marketplace</title>
+    <meta
+      name="description"
+      content="VOUCH indexes every settlement and dispute on X Layer and sells a single lookup — check_counterparty(agent_id) — as a paid MCP endpoint. Know who your agent is dealing with before it commits."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles/tokens.css" />
+    <link rel="stylesheet" href="styles/main.css" />
+    <script>
+      // The frontend talks to the backend over the same public API an external
+      // agent uses (§4). Override for a deployed API by setting this before load.
+      window.VOUCH_API =
+        window.VOUCH_API ||
+        (location.hostname === "localhost" || location.hostname === "127.0.0.1"
+          ? "http://localhost:8080"
+          : "");
+      // A well-formed demo agent that resolves to a HIGH_RISK read.
+      window.VOUCH_DEMO_AGENT =
+        "0x4471000000000000000000000000000000000c02a";
+    </script>
+  </head>
+  <body>
+    <a href="#lookup" class="skip">Skip to the lookup</a>
+
+    <header class="topbar">
+      <div class="brand">
+        <b>VOUCH</b>
+        <span>counterparty reputation</span>
+      </div>
+      <div class="livechips" id="livechips" aria-live="polite">
+        <span class="chip"
+          ><span class="dot live"></span>agents
+          <b id="stat-agents">—</b></span
+        >
+        <span class="chip">calls served <b id="stat-calls">—</b></span>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap">
+        <section class="hero">
+          <div data-reveal>
+            <h1>Know who your agent<br />is dealing with. <em>Before it commits.</em></h1>
+            <p class="lede">
+              Agents on OKX.AI negotiate, escrow, and settle on X Layer with no
+              information about the counterparty. VOUCH indexes every settlement
+              and dispute, builds a per-agent track record that
+              <em>cannot be backfilled</em>, and sells a single lookup as a paid
+              MCP endpoint.
+            </p>
+            <div class="meta">
+              <span class="tag">A2MCP · x402</span>
+              <span class="tag">X Layer</span>
+              <span class="tag">$0.004 / call</span>
+              <span class="tag">free basic tier</span>
+            </div>
+          </div>
+
+          <!-- Signature element: the live report card -->
+          <div class="card" data-reveal id="lookup">
+            <div class="card__head">
+              <span class="lbl">check_counterparty()</span>
+              <span class="dots"><i></i><i></i><i></i></span>
+            </div>
+            <form class="lookup" id="lookup-form" autocomplete="off">
+              <label class="skip" for="agent-input">Agent ID</label>
+              <input
+                id="agent-input"
+                class="mono"
+                type="text"
+                name="agent_id"
+                spellcheck="false"
+                placeholder="0x… agent id"
+              />
+              <button type="submit" id="run-btn">Check</button>
+            </form>
+            <div id="report-slot">
+              <div class="state">Enter an agent id, or run the demo below.</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="wrap">
+        <section class="block" data-reveal>
+          <h2>What a call returns</h2>
+          <div class="two">
+            <pre class="code" aria-label="Example response"><span class="c">// GET /check?agent_id=0x…&depth=standard</span>
+{
+  "agent_id": "0x4471…c02a",
+  "score": <b>34</b>,
+  "band": "<b>HIGH_RISK</b>",
+  "confidence": "<b>HIGH</b>",
+  "sample_size": 84,
+  "record": { <span class="c">/* jobs, disputes, delivery… */</span> },
+  "flags": ["<b>SINGLE_DOMINANT_COUNTERPARTY</b>"],
+  "summary": "84 jobs since Jul 6. Three disputes,
+    one lost. 41% of volume from one counterparty —
+    treat the record as less independent than the
+    job count suggests.",
+  "generated_at": "…"
+}</pre>
+            <div>
+              <p>
+                The customer is another agent, not a human. The response is JSON
+                an LLM can cite when it explains a decision to its owner —
+                <b>confidence is a first-class field and tracks sample size
+                alone.</b>
+                A high score never implies high confidence. Below five
+                settlements the answer is <span class="mono">LOW</span>
+                confidence with a <span class="mono">NEW_ENTITY</span> flag,
+                never a fabricated number.
+              </p>
+              <div class="price-row">
+                <div class="price">
+                  <div class="amt">$0.004 <small>/ call</small></div>
+                  <div class="desc">GET /check · via x402</div>
+                </div>
+                <div class="price">
+                  <div class="amt">free</div>
+                  <div class="desc">GET /check/basic · band + sample</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="block" data-reveal>
+          <h2>The score, shown in full</h2>
+          <p style="max-width: 60ch; margin-bottom: 1rem">
+            Transparency is the product. Anyone can compute a number; nobody else
+            shows their work. This is the exact formula behind every report —
+            deterministic, computed at read time, no black box.
+          </p>
+          <div class="formula" aria-label="Scoring formula">base = <b>50</b>
+
+completion_rate       = jobs_completed / (jobs_completed + jobs_abandoned)
+dispute_rate          = disputes_raised_against / max(jobs_completed, 1)
+loss_rate             = disputes_lost / max(disputes_raised_against, 1)
+volume_credit         = min(1, log10(1 + jobs_completed) / 2)
+tenure_credit         = min(1, log10(1 + days_active) / 2)
+concentration_penalty = max(0, (top_counterparty_share − 0.40) / 0.60)
+
+score = base
+      <b>+ 30</b> · completion_rate
+      <b>+ 10</b> · volume_credit
+      <b>+  5</b> · tenure_credit
+      <b>− 25</b> · dispute_rate
+      <b>− 20</b> · dispute_rate · loss_rate
+      <b>− 15</b> · concentration_penalty
+
+<b>bands</b>   0–39 HIGH_RISK · 40–59 CAUTION · 60–79 MODERATE · 80–100 TRUSTED
+<b>conf</b>    &lt;5 LOW · 5–24 MEDIUM · 25+ HIGH</div>
+        </section>
+
+        <section class="block" data-reveal>
+          <h2>The six flags</h2>
+          <p style="max-width: 60ch; margin-bottom: 1rem">
+            A scalar can't carry intent. These are the only flags VOUCH emits.
+            <span class="mono">SINGLE_DOMINANT_COUNTERPARTY</span> is the
+            anti-gaming one — it catches an agent farming reputation against its
+            own sock puppet.
+          </p>
+          <div class="legend">
+            <div class="row">
+              <span class="name">NEW_ENTITY</span>
+              <span class="desc">Fewer than five settlements — too thin to trust.</span>
+            </div>
+            <div class="row">
+              <span class="name">SINGLE_DOMINANT_COUNTERPARTY</span>
+              <span class="desc">Over 40% of volume from one counterparty.</span>
+            </div>
+            <div class="row">
+              <span class="name">DISPUTE_SPIKE_7D</span>
+              <span class="desc">Disputes clustered in the last seven days.</span>
+            </div>
+            <div class="row">
+              <span class="name">DORMANT_90D</span>
+              <span class="desc">No activity for over ninety days.</span>
+            </div>
+            <div class="row">
+              <span class="name">TICKET_SIZE_JUMP</span>
+              <span class="desc">Recent tickets far above the historical median.</span>
+            </div>
+            <div class="row">
+              <span class="name">FAST_GROWTH</span>
+              <span class="desc">Recent volume dominates lifetime job count.</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="wrap">
+        <footer>
+          <div class="grid2">
+            <div>
+              <div>VOUCH · counterparty reputation ASP · OKX.AI Genesis</div>
+              <div style="margin-top: 0.4rem">
+                MCP manifest:
+                <a id="mcp-link" href="#">/mcp/tools</a> ·
+                <a id="api-link" href="#">/health</a>
+              </div>
+            </div>
+            <div class="mono" style="color: var(--muted)">
+              agent id: <b id="agent-id-out" style="color: var(--text)">— pending listing —</b>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </main>
+
+    <script type="module" src="src/motion.js"></script>
+    <script type="module" src="src/stats.js"></script>
+    <script type="module" src="src/report.js"></script>
+  </body>
+</html>

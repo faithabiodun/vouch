@@ -1,0 +1,48 @@
+/* VOUCH design tokens — the single source of truth for the grey/black palette.
+   Nothing outside this file hardcodes a hex. Risk is signalled through value,
+   weight, and fill — never hue. If you need a ninth grey, add it HERE. */
+
+:root {
+  /* ── Palette: greys and black only (§9) ── */
+  --void: #000000;
+  --ink: #0a0a0a;
+  --panel: #121212;
+  --rule: #1c1c1c;
+  --rule-2: #2a2a2a;
+  --muted: #6e6e6e;
+  --text: #a8a8a8;
+  --bright: #ffffff;
+
+  /* ── Type ── */
+  --font-display: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, "Courier New",
+    monospace;
+
+  /* Fluid type scale */
+  --t-hero: clamp(2.4rem, 6vw, 4.5rem);
+  --t-h2: clamp(1.3rem, 2.6vw, 1.9rem);
+  --t-body: 0.95rem;
+  --t-mono: 0.82rem;
+  --t-micro: 0.7rem;
+
+  /* ── Spacing & rhythm ── */
+  --gap: 1rem;
+  --pad: clamp(1rem, 3vw, 2rem);
+  --maxw: 1180px;
+  --radius: 2px;
+
+  /* ── Motion ── */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 160ms;
+  --dur: 420ms;
+  --dur-slow: 900ms;
+}
+
+/* Every animation must be defeatable — the page is complete with motion off. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+  }
+}
