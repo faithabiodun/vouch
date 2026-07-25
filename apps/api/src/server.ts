@@ -6,6 +6,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { config } from "./lib/config.js";
+import { runMigrations } from "./lib/migrate.js";
 import { checkRoutes } from "./routes/check.js";
 import { statsRoutes } from "./routes/stats.js";
 import { mcpRoutes } from "./routes/mcp.js";
@@ -67,14 +68,20 @@ const isMain =
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-  buildServer()
-    .then((app) =>
-      app.listen({ port: config.port, host: "0.0.0.0" }).then(() => {
-        app.log?.info?.(`VOUCH API listening on :${config.port}`);
-      }),
-    )
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
+  (async () => {
+    if (config.databaseUrl) {
+      try {
+        await runMigrations(config.databaseUrl);
+      } catch (err) {
+        // Don't take the API down over a migration hiccup — log and continue.
+        console.error("[migrate] failed", err);
+      }
+    }
+    const app = await buildServer();
+    await app.listen({ port: config.port, host: "0.0.0.0" });
+    app.log?.info?.(`VOUCH API listening on :${config.port}`);
+  })().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
 }

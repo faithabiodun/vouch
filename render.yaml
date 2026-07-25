@@ -1,0 +1,80 @@
+# Render Blueprint for VOUCH.
+# Deploy: Render dashboard → New → Blueprint → pick the `faithabiodun/vouch` repo.
+# Render reads THIS file from the repo root on the default branch (main).
+# After the first deploy, set the secret env vars (marked sync:false) in the
+# dashboard — never commit them.
+#
+# What this provisions (all free / $0):
+#   vouch-db   — managed Postgres (schema is auto-migrated by the API on boot).
+#   vouch-api  — Fastify service: the paid /check + free endpoints AND the
+#                grey/black landing page, served from one origin.
+#
+# The indexer is a background worker; Render has no free worker tier and the
+# indexer has nothing to read until §3 validation supplies a real
+# SETTLEMENT_CONTRACT. Enable the commented block below (on a paid plan) once
+# you have the contract address.
+
+databases:
+  - name: vouch-db
+    databaseName: vouch
+    user: vouch
+    plan: free
+
+services:
+  - type: web
+    name: vouch-api
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install && npm run build --workspace packages/scoring && npm run build --workspace apps/api
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vouch-db
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      # Real x402: /check returns a genuine 402 challenge, not a bypass.
+      - key: X402_BYPASS
+        value: "false"
+      - key: X402_PRICE_USDC
+        value: "0.004"
+      - key: X402_NETWORK
+        value: xlayer
+      - key: CORS_ORIGIN
+        value: "*"
+      # The ASP wallet that receives $0.004/call. Set this in the dashboard.
+      - key: X402_RECIPIENT
+        sync: false
+      # Optional: an x402 facilitator URL that verifies payment proofs. Without
+      # it, /check returns 402 but proofs can't be validated. Set when ready.
+      - key: X402_FACILITATOR_URL
+        sync: false
+
+  # ── Indexer worker — enable after §3 gives a real contract ────────────
+  # Render workers are not free. Uncomment and pick a paid plan when ready.
+  # - type: worker
+  #   name: vouch-indexer
+  #   runtime: node
+  #   plan: starter
+  #   rootDir: .
+  #   buildCommand: npm install && npm run build --workspace apps/indexer
+  #   startCommand: node apps/indexer/dist/index.js
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: vouch-db
+  #         property: connectionString
+  #     - key: XLAYER_RPC_URL
+  #       value: https://rpc.xlayer.tech
+  #     - key: SETTLEMENT_CONTRACT
+  #       sync: false
+  #     - key: INDEXER_START_BLOCK
+  #       value: "0"
+  #     - key: INDEXER_BATCH_SIZE
+  #       value: "2000"
+  #     - key: INDEXER_POLL_MS
+  #       value: "5000"
